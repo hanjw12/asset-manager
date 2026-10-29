@@ -1,0 +1,25 @@
+{
+  "name": "asset-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "개인 금융 자산관리 — 자산·부채 평가액을 기록하고 순자산 추이와 자산 배분을 본다",
+  "scripts": {
+    "dev": "node server/index.js",
+    "build": "vite build",
+    "start": "node server/index.js --prod",
+    "test": "node --test server/calc.test.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.1.0"
+  }
+}
