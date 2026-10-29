@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api.js';
+import { api, connect, disconnect, sync } from './api.js';
+import { clearConnection, loadConnection, saveConnection } from './storage.js';
 import { inScope, parseScope } from './people.js';
 import Dashboard from './views/Dashboard.jsx';
 import Assets from './views/Assets.jsx';
 import Record from './views/Record.jsx';
 import Plan from './views/Plan.jsx';
+import Connect from './views/Connect.jsx';
 
 const TABS = [
   { key: 'dashboard', label: '대시보드' },
@@ -34,6 +36,8 @@ export default function App() {
   const [assets, setAssets] = useState(null);
   const [summary, setSummary] = useState(null);
   const [toast, setToast] = useState(null);
+  // 저장소 연결: connecting → ready, 실패하거나 처음이면 setup
+  const [conn, setConn] = useState(() => ({ status: loadConnection() ? 'connecting' : 'setup', saved: loadConnection() }));
 
   const setScope = useCallback((s) => {
     setScopeState(s);
@@ -61,6 +65,7 @@ export default function App() {
   }, [toast]);
 
   const reload = useCallback(async () => {
+    if (conn.status !== 'ready') return;
     try {
       const [p, a] = await Promise.all([api.people(), api.assets()]);
       // 삭제된 사람을 보고 있었다면 가구 전체로 되돌린다
@@ -73,11 +78,45 @@ export default function App() {
     } catch (err) {
       notify(err.message, true);
     }
-  }, [scope, setScope, notify]);
+  }, [conn.status, scope, setScope, notify]);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const open = useCallback(async (c) => {
+    setConn((prev) => ({ ...prev, status: prev.status === 'setup' ? 'setup' : 'connecting', busy: true, error: null }));
+    try {
+      const label = await connect(c);
+      saveConnection(c);
+      setConn({ status: 'ready', saved: c, label });
+    } catch (err) {
+      setConn({ status: 'setup', saved: c, error: err.message });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (conn.status === 'connecting' && !conn.busy) open(conn.saved);
+  }, [conn, open]);
+
+  const leave = useCallback(() => {
+    clearConnection();
+    disconnect();
+    setPeople(null);
+    setAssets(null);
+    setSummary(null);
+    setConn({ status: 'setup', saved: null });
+  }, []);
+
+  // 다른 기기에서 바꾼 내용을 보려고 화면으로 돌아올 때마다 다시 불러온다
+  useEffect(() => {
+    if (conn.status !== 'ready') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sync().then(reload, (err) => notify(err.message, true));
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [conn.status, reload, notify]);
 
   // 저장 같은 동작을 감싸 성공/실패 메시지와 새로고침을 한 곳에서 처리
   const run = useCallback(
@@ -99,7 +138,7 @@ export default function App() {
     location.hash = key;
   };
 
-  const ready = people && assets && summary && summary.scope === scope;
+  const ready = conn.status === 'ready' && people && assets && summary && summary.scope === scope;
   const hasJoint = assets?.some((a) => a.owner_id == null);
   const ctx = ready && {
     people,
@@ -111,6 +150,7 @@ export default function App() {
     run,
     go,
     notify,
+    storage: { label: conn.label, kind: conn.saved?.kind, leave },
   };
 
   return (
@@ -124,14 +164,14 @@ export default function App() {
           </span>
           자산관리
         </div>
-        <nav className="tabs">
+        {conn.status === 'ready' && <nav className="tabs">
           {TABS.map((t) => (
             <button key={t.key} className="tab" aria-current={tab === t.key ? 'page' : undefined} onClick={() => go(t.key)}>
               {t.label}
             </button>
           ))}
-        </nav>
-        {people && people.length > 0 && (
+        </nav>}
+        {conn.status === 'ready' && people && people.length > 0 && (
           <label className="scope">
             <span className="muted">보기</span>
             <select className="input" value={String(scope)} onChange={(e) => setScope(parseScope(e.target.value))} aria-label="누구의 자산을 볼지">
@@ -147,7 +187,9 @@ export default function App() {
         )}
       </header>
 
-      {!ctx ? (
+      {conn.status === 'setup' ? (
+        <Connect key={conn.saved?.repo ?? ''} initial={conn.saved?.kind === 'github' ? conn.saved : null} error={conn.error} busy={conn.busy} onConnect={open} />
+      ) : !ctx ? (
         <p className="muted">불러오는 중…</p>
       ) : tab === 'dashboard' ? (
         <Dashboard {...ctx} />

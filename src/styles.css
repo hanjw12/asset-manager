@@ -588,3 +588,26 @@ textarea {
   margin: 0 0 8px;
   color: var(--text-2);
 }
+
+/* ---------- 저장소 연결 ---------- */
+.connect {
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+  margin: 24px auto 0;
+}
+.form-error {
+  color: var(--down);
+  font-size: 13px;
+  margin: 0;
+}
+.steps {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.steps a {
+  color: var(--accent);
+}

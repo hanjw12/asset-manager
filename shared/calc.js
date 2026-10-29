@@ -1,4 +1,4 @@
-import { ASSET_CATEGORIES, isLiability } from '../shared/categories.js';
+import { ASSET_CATEGORIES, isLiability } from './categories.js';
 
 // 첫 기록 달부터 end 가 속한 달까지 각 달의 말일. 마지막 달은 end 그 자체.
 export function monthPoints(firstDate, end) {

@@ -5,7 +5,7 @@ import { categoryColor } from '../colors.js';
 import { formatInput, parseAmount, pct, todayLocal, wonShort } from '../format.js';
 import { defaultOwner, ownerName, scopeName } from '../people.js';
 
-export default function Plan({ summary, people, allAssets, scope, run, notify }) {
+export default function Plan({ summary, people, allAssets, scope, run, notify, storage }) {
   return (
     <div className="stack">
       <div className="grid grid-2">
@@ -13,7 +13,7 @@ export default function Plan({ summary, people, allAssets, scope, run, notify })
         <Goals summary={summary} people={people} scope={scope} run={run} />
         <Targets summary={summary} people={people} scope={scope} run={run} />
       </div>
-      <Backup run={run} notify={notify} />
+      <Backup run={run} notify={notify} storage={storage} />
     </div>
   );
 }
@@ -227,7 +227,7 @@ function Goals({ summary, people, scope, run }) {
   );
 }
 
-function Backup({ run, notify }) {
+function Backup({ run, notify, storage }) {
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
@@ -248,18 +248,42 @@ function Backup({ run, notify }) {
     setBusy(false);
   };
 
+  const download = async () => {
+    const blob = new Blob([JSON.stringify(await api.exportAll(), null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `assets-backup-${todayLocal()}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  const leave = () => {
+    const msg =
+      storage.kind === 'github'
+        ? '이 기기에서 연결을 해제하고 저장된 토큰을 지웁니다. GitHub 의 데이터는 그대로 남습니다. 계속할까요?'
+        : '연결 화면으로 돌아갑니다. 이 기기에 저장된 데이터는 지워지지 않습니다. 계속할까요?';
+    if (confirm(msg)) storage.leave();
+  };
+
   return (
     <div className="card">
-      <h2>백업</h2>
-      <p className="sub">데이터는 이 PC의 asset-manager/data/assets.db 에만 저장됩니다. 주기적으로 JSON 백업을 받아두세요.</p>
+      <h2>저장 위치·백업</h2>
+      <p className="sub">
+        {storage.kind === 'github'
+          ? `${storage.label} 에 저장됩니다. 저장할 때마다 커밋이 남습니다.`
+          : '이 기기 브라우저에만 저장됩니다. 브라우저 데이터를 지우면 사라지니 JSON 백업을 받아두세요.'}
+      </p>
       <div className="row">
-        <a className="btn" href="/api/export" download>
+        <button className="btn" onClick={download}>
           JSON 백업 내려받기
-        </a>
+        </button>
         <button className="btn" onClick={() => fileRef.current.click()} disabled={busy}>
           백업 파일로 복원…
         </button>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={onFile} />
+        <button className="btn ghost" onClick={leave}>
+          {storage.kind === 'github' ? '연결 해제' : '저장 위치 바꾸기'}
+        </button>
       </div>
     </div>
   );
